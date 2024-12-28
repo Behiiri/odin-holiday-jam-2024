@@ -19,6 +19,5 @@ Entity :: struct
     size  : vec,
     color : sdl.Color,
     tex   : ^sdl.Texture,
-    dest  : ^sdl.Rect
+    dest  : sdl.Rect
 }
-
