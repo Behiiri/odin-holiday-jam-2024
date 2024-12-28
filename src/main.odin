@@ -2,6 +2,7 @@ package game
 
 import "core:fmt"
 import "core:mem"
+import "core:math"
 
 import sdl "vendor:sdl2"
 import sdl_image "vendor:sdl2/image"
@@ -25,11 +26,10 @@ World :: struct
     tiles_in_x : f32,
     tiles_in_y : f32,
     scroll_pos : int,
-    player     : Entity,
+    player     : Player,
     tilemap    : [dynamic]Sprite_Type,
     map_width  : int,
     map_height : int,
-    
 }
 
 Sprite_Type :: enum
@@ -51,10 +51,10 @@ Sprite_Asset :: struct
 
 sprite_files : []Sprite_Asset =
     {
-        {Sprite_Type.player, "../dat/art/player.png"},
-        {Sprite_Type.map001, "../dat/map/map001.png"},
-        {Sprite_Type.ground_soil, "../dat/art/ground_soil.png"},
-        {Sprite_Type.ground_top, "../dat/art/ground_top.png"},
+        {Sprite_Type.player,         "../dat/art/player.png"},
+        {Sprite_Type.map001,         "../dat/map/map001.png"},
+        {Sprite_Type.ground_soil,    "../dat/art/ground_soil.png"},
+        {Sprite_Type.ground_top,     "../dat/art/ground_top.png"},
     }
 
 Sprite :: struct
@@ -101,6 +101,16 @@ get_tile_type :: proc(r : u8, g : u8, b : u8) -> Sprite_Type
     return Sprite_Type.not_found;
 }
 
+tile_index_to_Pos_x :: proc(i : int)
+{
+    
+}
+
+tile_to_world_pos :: proc(x : int, y : int) -> vec
+{
+    return vec {cast(f32)TILE_W * cast(f32)x, cast(f32)TILE_H * cast(f32)y}
+}
+
 init :: proc(game : ^Game) -> World
 {
     world := World{}
@@ -142,23 +152,29 @@ init :: proc(game : ^Game) -> World
         sdl.GetRGBA(pixels^, map_surface.format, &r, &g, &b, &a);
         pixels = mem.ptr_offset(pixels, 1);
         // fmt.println("pixel =", i, "(rgb) = ", r, g, b, a);
-        world.tilemap[i] = get_tile_type(r, g, b)
+        tile_type := get_tile_type(r, g, b)
+        if(tile_type == .player) {
+            tile_index_x := i % world.map_width;
+            tile_index_y := i / world.map_width;
+            world.player.pos = {(f32)(tile_index_x * TILE_W), (f32)((tile_index_y * TILE_H))}
+        } else {
+            world.tilemap[i] = tile_type
+        }
     }
 
     return world
 }
 
-update :: proc()
+update :: proc(world : ^World, dt : f32)
 {
+    speed : f32 = TILE_W * 5;
+    world.player.pos.x += world.player.movement.x * dt * speed
+    world.player.pos.y += world.player.movement.y * dt * speed
 }
 
 draw :: proc(renderer : ^sdl.Renderer, world : ^World)
 {
     sdl.SetRenderDrawColor(renderer, 0, 100, 100, 255)
-    //rect : sdl.Rect = { 200, 200, 120, 120 }
-    //sdl.RenderDrawRect(renderer, &rect)
-
-    // sdl.RenderCopy(renderer, world.player.tex, nil, &world.player.dest)
 
     for i in 0..< len(world.tilemap) {
         tile_x := i % world.map_width
@@ -168,6 +184,9 @@ draw :: proc(renderer : ^sdl.Renderer, world : ^World)
         dest : sdl.Rect = {cast(i32)tile_x*TILE_W, cast(i32)tile_y*TILE_H, TILE_W, TILE_H}
         sdl.RenderCopy(renderer, tex, nil, &dest)
     }
+
+    player_pos : sdl.Rect = { cast(i32)world.player.pos.x, cast(i32)world.player.pos.y, 32, 32 }
+    sdl.RenderCopy(renderer, world.player.tex, nil, &player_pos)    
     
     sdl.SetRenderDrawColor(renderer, 0, 100, 200, 255)
 }
@@ -201,31 +220,74 @@ main :: proc()
         end_time : u64
 
         dt := get_timestep(1.0 / 60.0)
-
+        //dt : f32 = end - start
+        
         if dt > 0.075 {
             dt = 0.075;
         }
 
+        // input
         if(sdl.PollEvent(&event)) {
             if(event.type == sdl.EventType.QUIT) {
                 break gameloop
             }
 
             if(event.type == sdl.EventType.KEYDOWN) {
-                if(event.key.keysym.scancode == .ESCAPE) {
-                    break gameloop
-                }    
+                #partial switch(event.key.keysym.scancode) {
+                    case .ESCAPE : {
+                        break gameloop
+                    }
+                    case .W : {
+                        world.player.movement.y = 0;
+                        world.player.movement.y -= 1;
+                    }
+                    case .A : {
+                        world.player.movement.x = 0;
+                        world.player.movement.x -= 1;
+                    }
+                    case .S : {
+                        world.player.movement.y = 0;
+                        world.player.movement.y += 1;
+
+                    }
+                    case .D : {
+                        world.player.movement.x = 0;
+                        world.player.movement.x += 1;
+                    }
+                }
+            }
+
+            if(event.type == sdl.EventType.KEYUP) {
+                #partial switch(event.key.keysym.scancode) {
+                    case .ESCAPE : {
+                        break gameloop
+                    }
+                    case .W : {
+                        world.player.movement.y = 0;
+                    }
+                    case .A : {
+                        world.player.movement.x = 0;
+                    }
+                    case .S : {
+                        world.player.movement.y = 0;
+
+                    }
+                    case .D : {
+                        world.player.movement.x = 0;
+                    }
+                }
             }
         }
 
+        update(&world, dt)
+
         rend := game.renderer
-        
         sdl.RenderClear(rend)
         draw(rend, &world)
         sdl.RenderPresent(rend)
         
         end = cast(f32)sdl.GetTicks() / 1000.0
-        // fmt.println("dt : ", 1.0 / (end - start))
+        fmt.println("dt : ", 1.0 / (end - start))
     }
 
     // cleanup??

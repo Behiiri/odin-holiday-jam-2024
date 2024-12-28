@@ -21,3 +21,13 @@ Entity :: struct
     tex   : ^sdl.Texture,
     dest  : sdl.Rect
 }
+
+
+
+Player :: struct
+{
+    movement : vec,
+    using entity: Entity,
+}
+
+
