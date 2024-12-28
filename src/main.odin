@@ -7,10 +7,10 @@ import "core:math"
 import sdl "vendor:sdl2"
 import sdl_image "vendor:sdl2/image"
 
-WINDOW_X :: 640
-WINDOW_Y :: 420
-TILE_W :: 21
-TILE_H :: 21
+WINDOW_X :: 640 * 2
+WINDOW_Y :: 420 * 2
+TILE_W :: 21 * 2
+TILE_H :: 21 * 2
 
 MAX_ENTITY :: ((WINDOW_X / TILE_W) + 1) * ((WINDOW_Y / TILE_H) + 1)
 
@@ -25,7 +25,7 @@ World :: struct
     entities   : [MAX_ENTITY]Entity,
     tiles_in_x : f32,
     tiles_in_y : f32,
-    scroll_pos : int,
+    scroll_pos : f32,
     player     : Player,
     tilemap    : [dynamic]Sprite_Type,
     map_width  : int,
@@ -167,21 +167,34 @@ init :: proc(game : ^Game) -> World
 
 update :: proc(world : ^World, dt : f32)
 {
-    speed : f32 = TILE_W * 5;
-    world.player.pos.x += world.player.movement.x * dt * speed
-    world.player.pos.y += world.player.movement.y * dt * speed
+    speed : f32 = TILE_W * 8;
+    //world.player.pos.x += world.player.movement.x * dt * speed
+    //world.player.pos.y += world.player.movement.y * dt * speed
+    world.scroll_pos += world.player.movement.x * dt * speed
+    if world.scroll_pos < 0 {
+        world.scroll_pos = 0
+    }
+    
 }
 
 draw :: proc(renderer : ^sdl.Renderer, world : ^World)
 {
     sdl.SetRenderDrawColor(renderer, 0, 100, 100, 255)
+    leftmost_tile  := world.scroll_pos / TILE_W
+    rightmost_tile := (world.scroll_pos + WINDOW_X) / TILE_W
 
+     // TODO calulate the index of tiles that will be drawn and use it
     for i in 0..< len(world.tilemap) {
         tile_x := i % world.map_width
+        if leftmost_tile > cast(f32)tile_x + 1 || rightmost_tile < cast(f32)tile_x {
+            continue
+        }
         tile_y := i / world.map_width
 
         tex := sprites[world.tilemap[i]]
-        dest : sdl.Rect = {cast(i32)tile_x*TILE_W, cast(i32)tile_y*TILE_H, TILE_W, TILE_H}
+        x := cast(i32)tile_x*TILE_W
+        y := cast(i32)tile_y*TILE_H
+        dest : sdl.Rect = {(x - cast(i32)world.scroll_pos), y, TILE_W, TILE_H}
         sdl.RenderCopy(renderer, tex, nil, &dest)
     }
 
@@ -191,7 +204,6 @@ draw :: proc(renderer : ^sdl.Renderer, world : ^World)
     sdl.SetRenderDrawColor(renderer, 0, 100, 200, 255)
 }
 
-
 main :: proc()
 {
     game : Game
@@ -199,7 +211,7 @@ main :: proc()
     game.window = sdl.CreateWindow(
         "game",
         sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
-        640, 420,
+        WINDOW_X, WINDOW_Y,
         sdl.WINDOW_SHOWN)
     assert(game.window != nil, sdl.GetErrorString());
     
@@ -217,9 +229,9 @@ main :: proc()
         start = cast(f32)sdl.GetTicks() / 1000.0
         
         start_time : u64
-        end_time : u64
+        end_time   : u64
 
-        dt := get_timestep(1.0 / 60.0)
+        dt := get_timestep(1.0 / 6000.0)
         //dt : f32 = end - start
         
         if dt > 0.075 {
@@ -238,21 +250,25 @@ main :: proc()
                         break gameloop
                     }
                     case .W : {
-                        world.player.movement.y = 0;
-                        world.player.movement.y -= 1;
+                        //world.player.movement.y = 0;
+                        //world.player.movement.y -= 1;
                     }
                     case .A : {
                         world.player.movement.x = 0;
                         world.player.movement.x -= 1;
                     }
                     case .S : {
-                        world.player.movement.y = 0;
-                        world.player.movement.y += 1;
+                        //world.player.movement.y = 0;
+                        //world.player.movement.y += 1;
 
                     }
                     case .D : {
                         world.player.movement.x = 0;
                         world.player.movement.x += 1;
+                    }
+
+                    case .SPACE : {
+                        
                     }
                 }
             }
@@ -263,13 +279,13 @@ main :: proc()
                         break gameloop
                     }
                     case .W : {
-                        world.player.movement.y = 0;
+                        //world.player.movement.y = 0;
                     }
                     case .A : {
                         world.player.movement.x = 0;
                     }
                     case .S : {
-                        world.player.movement.y = 0;
+                        //world.player.movement.y = 0;
 
                     }
                     case .D : {
@@ -287,7 +303,7 @@ main :: proc()
         sdl.RenderPresent(rend)
         
         end = cast(f32)sdl.GetTicks() / 1000.0
-        fmt.println("dt : ", 1.0 / (end - start))
+        // fmt.println("dt : ", 1.0 / (end - start))
     }
 
     // cleanup??

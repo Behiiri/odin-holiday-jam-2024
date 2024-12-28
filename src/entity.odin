@@ -17,6 +17,7 @@ Entity :: struct
     valid : bool,
     pos   : vec,
     size  : vec,
+    v     : vec,
     color : sdl.Color,
     tex   : ^sdl.Texture,
     dest  : sdl.Rect
