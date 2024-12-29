@@ -32,9 +32,3 @@ Player :: struct
     looking_right : bool,
     using entity: Entity,
 }
-
-
-/* tile_to_world_pos :: proc(x : int, y : int) -> vec */
-/* { */
-/*     return vec {cast(f32)TILE_W * cast(f32)x, cast(f32)TILE_H * cast(f32)y} */
-/* } */

@@ -13,7 +13,7 @@ ROWS     :: 10 // number of visible rows in the screen
 TILE_H   :: SCREEN_Y / ROWS
 TILE_W   :: TILE_H
 
-GRAVITY :: 0.5
+GRAVITY :: 0.4
 YUMP_STRENGTH :: -16
 
 MAX_ENTITY :: ((SCREEN_X / TILE_W) + 1) * ((SCREEN_Y / TILE_H) + 1)
@@ -158,9 +158,15 @@ update :: proc(world : ^World, dt : f32)
 {
     speed : f32 = TILE_W * 8;
 
-    world.player.pos.x += world.player.movement.x * dt * speed
+    delta_x := world.player.movement.x * dt * speed
+    world.player.pos.x += delta_x
     world.player.pos.y += world.player.movement.y * dt * speed
     d : vec = {world.player.pos.x - SCREEN_X/2, world.player.pos.y - SCREEN_Y/2}
+
+    if(!can_move_to(world)){
+        world.player.pos.x -= delta_x
+    }
+        
 
     if world.player.looking_right == true {
         d.x += SCREEN_X/3 + TILE_H/2
@@ -174,29 +180,27 @@ update :: proc(world : ^World, dt : f32)
         world.scroll_pos.x = 0;
     }
 
-    if world.player.pos.x < 0 {
-        world.player.pos.x = 0;
-    }
-    // world.player.pos.y += GRAVITY;
-    /* if world.player.pos.y > TILE_H * 11 { // TODO hardcoded */
-    /*     world.player.pos.y = TILE_H * 11 */
-    /* } */
-
     if (world.player.is_yumping) {
         world.player.velocity.y += GRAVITY;
         world.player.pos.y += world.player.velocity.y;
 
-        if (world.player.pos.y >= TILE_H * 11) {
-            world.player.pos.y = TILE_H * 11;
-            world.player.is_yumping = false;
-            world.player.velocity.y = 0;
-        }
+    } else
+    {
+        world.player.velocity.y += GRAVITY/4*3;
+        world.player.pos.y += world.player.velocity.y/4*3;
     }
+    
+    floor := get_floor_height(world.player.pos.x, world);
+    if (world.player.pos.y >= floor) {
+        world.player.pos.y = floor;
+        world.player.is_yumping = false;
+        world.player.velocity.y = 0;
+    }
+
 }
 
 yump :: proc(player : ^Player)
 {
-    fmt.println("yumping")
     if !player.is_yumping {
         player.velocity.y = YUMP_STRENGTH;
         player.is_yumping = true;
@@ -214,7 +218,7 @@ animate_to_destination_f :: proc(f : ^f32, d : f32, dt : f32, t : f32) -> bool
     f^ += (d - f^) * (1.0 - math.pow(2.0, -t * dt));
     if (is_equals(f^, d, 0.5)) {
         f^ = d;
-        return true; // reached
+        return true;
     }
     return false;
 }
@@ -223,6 +227,58 @@ animate_to_destination_vec :: proc(v : ^vec, d : vec, dt : f32, t : f32)
 {
     animate_to_destination_f(&(v.x), d.x, dt, t);
     animate_to_destination_f(&(v.y), d.y, dt, t);
+}
+
+can_move_to :: proc(world : ^World) -> bool
+{
+    is_moving_right := world.player.looking_right
+    // tile_column : int = cast(int)x / TILE_W;
+    player_col  : int = cast(int)world.player.pos.x / TILE_W
+
+    if player_col % world.map_width == 0  && !is_moving_right {
+        return false
+    }
+    
+    if player_col % world.map_width == world.map_width -1  && is_moving_right {
+        return false
+    }
+
+    player_row  : int = cast(int)world.player.pos.y / TILE_H
+    index := player_col + player_row * world.map_width
+    if is_moving_right {
+        index := player_col + player_row * world.map_width
+        if  world.tilemap[index + 1] == .ground_soil ||
+            world.tilemap[index + 1] == .ground_top {
+                return false;
+            }
+    }
+    
+    if !is_moving_right {
+        if  world.tilemap[index] == .ground_soil ||
+            world.tilemap[index] == .ground_top {
+                return false;
+            }
+    }
+
+    return true;
+}
+
+
+get_floor_height :: proc(x : f32, world : ^World) -> f32
+{
+    tile_column : int = cast(int)x / TILE_W;
+    player_row  : int = cast(int)world.player.pos.y / TILE_H
+
+    for i := player_row; i < world.map_height; i += 1 {
+        index : int = tile_column + world.map_width * (i);
+        if(world.tilemap[index] == .ground_soil || world.tilemap[index] == .ground_top )
+        {
+            return TILE_H * cast(f32)(i - 1)
+        }
+    }
+    
+    
+    return 30 * TILE_H
 }
 
 draw :: proc(renderer : ^sdl.Renderer, world : ^World)
@@ -305,7 +361,7 @@ main :: proc()
                     }
                     case .W : {
                         world.player.movement.y = 0;
-                        world.player.movement.y -= 1;
+                        //world.player.movement.y -= 1;
                     }
                     case .A : {
                         world.player.movement.x = 0;
@@ -314,7 +370,7 @@ main :: proc()
                     }
                     case .S : {
                         world.player.movement.y = 0;
-                        world.player.movement.y += 1;
+                        //world.player.movement.y += 1;
 
                     }
                     case .D : {
